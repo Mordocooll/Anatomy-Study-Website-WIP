@@ -1,0 +1,400 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Scapula</title>
+
+  <style>
+    body { font-family: Arial; margin: 40px; }
+
+    /* Layout: image left, dropdown right */
+    .main {
+      display: flex;
+      align-items: flex-start;
+      gap: 30px;
+    }
+
+    .stage {
+      position: relative;
+      width: 600px;
+      flex-shrink: 0;
+    }
+
+    .stage img {
+      width: 100%;
+      border: 1px solid black;
+      display: block;
+    }
+
+    /* DOT COLORS */
+    .hotspot {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid black;
+      transform: translate(-50%, -50%);
+      background: red;
+    }
+
+    .hotspot.current {
+      background: blue;
+      outline: 4px solid gold;
+    }
+
+    .hotspot.correct {
+      background: green;
+      outline: none;
+    }
+
+    input {
+      padding: 10px;
+      font-size: 16px;
+      margin-top: 10px;
+      width: 320px;
+    }
+
+    button {
+      padding: 10px;
+      font-size: 16px;
+      margin-left: 6px;
+      cursor: pointer;
+    }
+
+    #result {
+      margin-top: 12px;
+      font-size: 18px;
+      font-weight: bold;
+      min-height: 24px;
+    }
+
+    .row {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* RIGHT SIDE DROPDOWN PANEL */
+    .panel {
+      width: 280px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    details summary {
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .parts {
+      margin-top: 10px;
+      padding: 0;
+      list-style: none;
+    }
+
+    .parts li {
+      padding: 4px 0;
+    }
+
+    .parts li.unanswered {
+      color: black;
+    }
+
+    .parts li.answered {
+      color: blue;
+      font-weight: bold;
+    }
+
+  </style>
+</head>
+
+<body>
+
+<h1>Scapula (Pectoral Girdle)</h1>
+
+<div class="main">
+
+  <!-- LEFT: IMAGE -->
+  <div class="stage" id="stage">
+
+<img id="boneImg" src="Images/scapula_anterior.png">
+
+<div id="hotspotsLayer"></div>
+
+  </div>
+
+  <!-- RIGHT: DROPDOWN -->
+
+  <div class="panel">
+      <!-- Angle change -->
+    <div style="margin-bottom:10px;">
+    <label for="angleSelect" style="font-weight:bold; display:block; margin-bottom:6px;">Angle</label>
+    <select id="angleSelect" style="width:100%; padding:8px; font-size:14px;">
+        <option value="anterior">Anterior</option>
+        <option value="posterior">Posterior</option>
+        <option value="lateral">Lateral</option>
+    </select>
+    </div>
+<div style="margin-top:10px;">
+  <button type="button" id="placeBtn">Placement: OFF</button>
+  <div id="placeOut" style="margin-top:8px; font-size:14px;"></div>
+</div>
+    <details open>
+
+      <summary id="partsSummary">Bone part names</summary>
+
+      <ul id="partsList" class="parts"></ul>
+
+    </details>
+
+  </div>
+
+</div>
+
+<div class="row">
+
+  <input type="text" id="answer" placeholder="Type your answer...">
+
+  <button onclick="submitAnswer()">Submit</button>
+
+  <button onclick="nextQuestion()">Skip</button>
+
+  <span id="progress"></span>
+
+</div>
+
+<p id="result"></p>
+
+<br>
+<a href="bones.html">← Back to Bones</a>
+
+<script>
+
+
+// --- VIEW DATA ---
+const VIEWS = {
+  anterior: {
+    img: "Images/scapula_anterior.png",
+    hotspots: [
+      { name: "Acromion", left: 22.00, top: 8.15 },
+      { name: "Coracoid process", left: 36.17, top: 10.56 },
+      { name: "Scapular notch", left: 49.33, top: 10.08 },
+      { name: "Superior border", left: 61.83, top: 10.40 },
+      { name: "Subscapular fossa", left: 81.67, top: 20.23 },
+      { name: "Medial border", left: 86.17, top: 59.39 },
+      { name: "Lateral border", left: 35.67, top: 65.35 },
+      { name: "Infraglenoid tubercle", left: 22.50, top: 46.34 },
+      { name: "Glenoid cavity", left: 19.00, top: 40.37 },
+      { name: "Supraglenoid tubercle", left: 20.17, top: 25.23 }
+    ]
+  },
+
+  posterior: {
+    img: "Images/scapula_posterior.png",  
+    hotspots: [
+        { name: "Superior border", left: 39.50, top: 9.77 },
+        { name: "Scapular notch", left: 48.83, top: 9.44 },
+        { name: "Spine of scapula", left: 58.50, top: 9.44 },
+        { name: "Coracoid process", left: 69.50, top: 9.44 },
+        { name: "Acromion", left: 87.50, top: 15.51 },
+        { name: "Glenoid cavity", left: 82.50, top: 33.23 },
+        { name: "Infraglenoid tubercle", left: 76.33, top: 39.96 },
+        { name: "Infraspinous fossa", left: 69.83, top: 47.99 },
+        { name: "Lateral border", left: 61.50, top: 65.55 },
+        { name: "Supraspinous fossa", left: 18.33, top: 22.40 },
+        { name: "Medial border", left: 14.83, top: 41.43 }    ]
+  },
+
+  lateral: {
+    img: "Images/scapula_lateral_right.png", 
+    hotspots: [
+        { name: "Acromion", left: 29.33, top: 6.55 },
+        { name: "Coracoid process", left: 70.17, top: 19.13 },
+        { name: "Supraglenoid tubercle", left: 62.50, top: 26.61 },
+        { name: "Infraglenoid tubercle", left: 52.33, top: 36.70 },
+        { name: "Lateral border", left: 52.33, top: 54.27 },
+        { name: "Glenoid Cavity", left: 19.00, top: 28.85 }
+    ]
+    }
+};
+
+
+
+// --- ELEMENTS ---
+const angleSelect = document.getElementById("angleSelect");
+const boneImg = document.getElementById("boneImg");
+const hotspotsLayer = document.getElementById("hotspotsLayer");
+
+const placeBtn = document.getElementById("placeBtn");
+const placeOut = document.getElementById("placeOut");
+
+let placeMode = false;
+
+if (placeBtn && placeOut) {
+  placeBtn.addEventListener("click", () => {
+    placeMode = !placeMode;
+    placeBtn.textContent = placeMode ? "Placement: ON" : "Placement: OFF";
+    placeOut.textContent = placeMode ? "Click the image to generate left/top %." : "";
+  });
+
+  document.getElementById("stage").addEventListener("click", (e) => {
+    if (!placeMode) return;
+
+
+    const rect = document.getElementById("stage").getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const leftPct = (x / rect.width) * 100;
+    const topPct = (y / rect.height) * 100;
+
+placeOut.innerHTML =
+  `Copy this into VIEWS.${angleSelect.value}.hotspots:<br><code>{ name: "NAME", left: ${leftPct.toFixed(2)}, top: ${topPct.toFixed(2)} },
+</code>`;
+  });
+}
+// dots will be re-created each view
+let dots = [];
+
+function renderView(viewKey) {
+  const view = VIEWS[viewKey];
+
+  boneImg.src = view.img;
+  hotspotsLayer.innerHTML = "";
+
+  view.hotspots.forEach(h => {
+    const d = document.createElement("div");
+    d.className = "hotspot";
+    d.dataset.answer = h.name;
+    d.style.left = h.left + "%";
+    d.style.top = h.top + "%";
+    hotspotsLayer.appendChild(d);
+  });
+
+  dots = Array.from(hotspotsLayer.querySelectorAll(".hotspot"));
+
+  // reset quiz state for the new view
+  currentDot = null;
+  resultEl.textContent = "";
+
+  updateDropdown();
+  nextQuestion();
+}
+
+angleSelect.addEventListener("change", () => {
+  renderView(angleSelect.value);
+});
+let currentDot = null
+
+const answerEl = document.getElementById("answer")
+const resultEl = document.getElementById("result")
+const partsListEl = document.getElementById("partsList")
+const partsSummaryEl = document.getElementById("partsSummary")
+const progressEl = document.getElementById("progress")
+
+function normalize(s){
+  return s.trim().toLowerCase()
+}
+
+function isCorrect(dot){
+  return dot.classList.contains("correct")
+}
+
+function updateDropdown(){
+
+  partsListEl.innerHTML=""
+
+  dots.sort((a,b)=>a.dataset.answer.localeCompare(b.dataset.answer))
+
+  dots.forEach(dot=>{
+
+    const li=document.createElement("li")
+
+    li.textContent=dot.dataset.answer
+
+    li.className=isCorrect(dot)?"answered":"unanswered"
+
+    partsListEl.appendChild(li)
+
+  })
+
+  const done=dots.filter(isCorrect).length
+
+  partsSummaryEl.textContent="Bone part names ("+done+"/"+dots.length+")"
+
+  progressEl.textContent="Progress: "+done+"/"+dots.length
+
+}
+
+function pickRandom(){
+
+  const remaining=dots.filter(d=>!isCorrect(d))
+
+  if(remaining.length===0) return null
+
+  return remaining[Math.floor(Math.random()*remaining.length)]
+
+}
+
+function nextQuestion(){
+
+  if(currentDot && !isCorrect(currentDot))
+    currentDot.classList.remove("current")
+
+  currentDot=pickRandom()
+
+  if(!currentDot){
+
+    resultEl.textContent="Complete"
+
+    return
+  }
+
+  currentDot.classList.add("current")
+
+  answerEl.value=""
+
+  answerEl.focus()
+
+}
+
+function submitAnswer(){
+
+  if(!currentDot) return
+
+  const user=normalize(answerEl.value)
+
+  const correct=normalize(currentDot.dataset.answer)
+
+  if(user===correct){
+
+    currentDot.classList.remove("current")
+
+    currentDot.classList.add("correct")
+
+    resultEl.textContent="Correct: "+currentDot.dataset.answer
+
+    updateDropdown()
+
+    setTimeout(nextQuestion,600)
+
+  }
+  else{
+
+    resultEl.textContent="Incorrect"
+
+  }
+
+}
+
+answerEl.addEventListener("keydown",e=>{
+  if(e.key==="Enter") submitAnswer()
+})
+
+renderView("anterior");
+</script>
+
+</body>
+</html>

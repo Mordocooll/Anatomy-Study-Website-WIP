@@ -1,0 +1,387 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+
+<title>Hand</title>
+
+<style>
+
+body { font-family: Arial; margin: 40px; }
+
+.main {
+  display: flex;
+  align-items: flex-start;
+  gap: 30px;
+}
+
+.stage {
+  position: relative;
+  width: 600px;
+}
+
+.stage img {
+  width: 100%;
+  border: 1px solid black;
+  display: block;
+}
+
+.hotspot {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid black;
+  transform: translate(-50%, -50%);
+  background: red;
+}
+
+.hotspot.current {
+  background: blue;
+  outline: 4px solid gold;
+}
+
+.hotspot.correct {
+  background: green;
+}
+
+.panel {
+  width: 280px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.parts {
+  margin-top: 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.parts li.unanswered { color: black; }
+.parts li.answered { color: blue; font-weight: bold; }
+
+input {
+  padding: 10px;
+  font-size: 16px;
+  width: 320px;
+}
+
+button {
+  padding: 10px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+</style>
+</head>
+
+<body>
+
+<h1>Hand</h1>
+
+<div class="main">
+
+<div class="stage" id="stage">
+
+<img id="boneImg">
+
+<div id="hotspotsLayer"></div>
+
+</div>
+
+<div class="panel">
+
+<label><b>Angle</b></label>
+
+<select id="angleSelect" style="width:100%; padding:8px; margin-top:6px;">
+  <option value="palmar">Palmar</option>
+</select>
+
+<br><br>
+
+<button id="placeBtn">Placement: OFF</button>
+<div id="placeOut"></div>
+
+<details open>
+<summary id="partsSummary">Bone part names</summary>
+<ul id="partsList" class="parts"></ul>
+</details>
+
+</div>
+
+</div>
+
+<br>
+
+<input id="answer" placeholder="Type your answer">
+<button onclick="submitAnswer()">Submit</button>
+<button onclick="nextQuestion()">Skip</button>
+
+<p id="result"></p>
+<p id="progress"></p>
+
+<a href="bones.html">← Back to Bones</a>
+
+<script>
+
+//////////////////////////////////////////////////////////
+// VIEW DATA
+//////////////////////////////////////////////////////////
+
+const VIEWS = {
+
+palmar: {
+
+//////////////////////////////////////////////////////////
+// Edit Name and Coordinates in this array:
+//////////////////////////////////////////////////////////
+
+img: "Images/hand_palmar.png",
+hotspots: [
+    { name:"Pisiform", left:27.67, top:72.18 },
+    { name:"Triquetrum", left:28.00, top:74.97 },
+    { name:"Lunate", left:28.50, top:77.65 },
+    { name:"Scaphoid", left:70.67, top:78.35 },
+    { name:"Hamate", left:25.33, top:67.05 },
+    { name:"Capitate", left:71.67, top:75.32 },
+    { name:"Trapezoid", left:77.50, top:66.93 },
+    { name:"Trapezium", left:74.50, top:72.06 },
+    { name:"Metacarpal 5", left:17.00, top:58.08 },
+    { name:"Metacarpal 4", left:16.83, top:54.35 },
+    { name:"Metacarpal 3", left:15.00, top:50.97 },
+    { name:"Metacarpal 2", left:66.00, top:49.58 },
+    { name:"Metacarpal 1", left:83.33, top:60.53 },
+    { name:"Proximal phalanx 5", left:13.00, top:42.00 },
+    { name:"Proximal phalanx 4", left:9.67, top:37.34 },
+    { name:"Proximal phalanx 3", left:7.17, top:31.40 },
+    { name:"Proximal phalanx 2", left:75.83, top:25.69 },
+    { name:"Proximal phalanx 1", left:89.00, top:43.40 },
+    { name:"Middle phalanx 5", left:13.50, top:27.67 },
+    { name:"Middle phalanx 4", left:20.17, top:14.39 },
+    { name:"Middle phalanx 3", left:54.50, top:11.83 },
+    { name:"Middle phalanx 2", left:74.00, top:14.39 },
+    { name:"Distal phalanx 5", left:9.67, top:19.52 },
+    { name:"Distal phalanx 4", left:21.83, top:7.29 },
+    { name:"Distal phalanx 3", left:51.50, top:2.98 },
+    { name:"Distal phalanx 2", left:70.17, top:6.24 },
+    { name:"Distal phalanx 1", left:90.83, top:32.92 },
+
+]
+
+}
+};
+
+//////////////////////////////////////////////////////////
+// ELEMENTS
+//////////////////////////////////////////////////////////
+
+const boneImg = document.getElementById("boneImg");
+const hotspotsLayer = document.getElementById("hotspotsLayer");
+const angleSelect = document.getElementById("angleSelect");
+
+const answerEl = document.getElementById("answer");
+const resultEl = document.getElementById("result");
+
+const partsListEl = document.getElementById("partsList");
+const partsSummaryEl = document.getElementById("partsSummary");
+
+const progressEl = document.getElementById("progress");
+
+const placeBtn = document.getElementById("placeBtn");
+const placeOut = document.getElementById("placeOut");
+
+//////////////////////////////////////////////////////////
+// STATE
+//////////////////////////////////////////////////////////
+
+let dots = [];
+let currentDot = null;
+let placeMode = false;
+
+//////////////////////////////////////////////////////////
+// RENDER VIEW
+//////////////////////////////////////////////////////////
+
+function renderView(viewKey){
+
+const view = VIEWS[viewKey];
+
+boneImg.src = view.img;
+
+hotspotsLayer.innerHTML = "";
+
+view.hotspots.forEach(h=>{
+
+const d = document.createElement("div");
+
+d.className="hotspot";
+
+d.dataset.answer=h.name;
+
+d.style.left=h.left+"%";
+d.style.top=h.top+"%";
+
+hotspotsLayer.appendChild(d);
+
+});
+
+dots = Array.from(hotspotsLayer.querySelectorAll(".hotspot"));
+
+updateDropdown();
+
+nextQuestion();
+
+}
+
+//////////////////////////////////////////////////////////
+// QUIZ LOGIC
+//////////////////////////////////////////////////////////
+
+function normalize(s){
+return s.trim().toLowerCase();
+}
+
+function isCorrect(dot){
+return dot.classList.contains("correct");
+}
+
+function updateDropdown(){
+
+partsListEl.innerHTML="";
+
+dots.forEach(dot=>{
+
+const li=document.createElement("li");
+
+li.textContent=dot.dataset.answer;
+
+li.className=isCorrect(dot)?"answered":"unanswered";
+
+partsListEl.appendChild(li);
+
+});
+
+const done=dots.filter(isCorrect).length;
+
+partsSummaryEl.textContent=`Bone part names (${done}/${dots.length})`;
+
+progressEl.textContent=`Progress: ${done}/${dots.length}`;
+
+}
+
+function pickRandom(){
+
+const remaining=dots.filter(d=>!isCorrect(d));
+
+if(remaining.length===0) return null;
+
+return remaining[Math.floor(Math.random()*remaining.length)];
+
+}
+
+function nextQuestion(){
+
+if(currentDot && !isCorrect(currentDot))
+currentDot.classList.remove("current");
+
+currentDot=pickRandom();
+
+if(!currentDot){
+
+resultEl.textContent="Complete";
+
+return;
+
+}
+
+currentDot.classList.add("current");
+
+answerEl.value="";
+
+answerEl.focus();
+
+}
+
+function submitAnswer(){
+
+if(!currentDot) return;
+
+const user=normalize(answerEl.value);
+
+const correct=normalize(currentDot.dataset.answer);
+
+if(user===correct){
+
+currentDot.classList.remove("current");
+
+currentDot.classList.add("correct");
+
+resultEl.textContent="Correct: "+currentDot.dataset.answer;
+
+updateDropdown();
+
+setTimeout(nextQuestion,600);
+
+}
+else{
+resultEl.textContent="Incorrect";
+}
+
+}
+
+//////////////////////////////////////////////////////////
+// ANGLE SWITCH
+//////////////////////////////////////////////////////////
+
+angleSelect.addEventListener("change",()=>{
+renderView(angleSelect.value);
+});
+
+//////////////////////////////////////////////////////////
+// PLACEMENT MODE
+//////////////////////////////////////////////////////////
+
+placeBtn.addEventListener("click",()=>{
+
+placeMode=!placeMode;
+
+placeBtn.textContent=placeMode?"Placement: ON":"Placement: OFF";
+
+});
+
+document.getElementById("stage").addEventListener("click",(e)=>{
+
+if(!placeMode) return;
+
+const rect = document.getElementById("stage").getBoundingClientRect();
+
+const x = e.clientX - rect.left;
+const y = e.clientY - rect.top;
+
+const leftPct=(x/rect.width)*100;
+const topPct=(y/rect.height)*100;
+
+placeOut.innerHTML=
+`Copy into VIEWS.${angleSelect.value}.hotspots:<br>
+{ name:"NAME", left:${leftPct.toFixed(2)}, top:${topPct.toFixed(2)} },`;
+
+});
+//////////////////////////////////////////////////////////
+// ENTER KEY SUPPORT
+//////////////////////////////////////////////////////////
+
+answerEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") submitAnswer();
+});
+
+//////////////////////////////////////////////////////////
+// START
+//////////////////////////////////////////////////////////
+
+renderView("palmar");
+
+</script>
+
+</body>
+</html>

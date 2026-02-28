@@ -1,0 +1,380 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+
+<title>Fibia</title>
+
+<style>
+
+body { font-family: Arial; margin: 40px; }
+
+.main {
+  display: flex;
+  align-items: flex-start;
+  gap: 30px;
+}
+
+.stage {
+  position: relative;
+  width: 600px;
+}
+
+.stage img {
+  width: 60%;
+  border: 1px solid black;
+  display: block;
+}
+
+.hotspot {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid black;
+  transform: translate(-50%, -50%);
+  background: red;
+}
+
+.hotspot.current {
+  background: blue;
+  outline: 4px solid gold;
+}
+
+.hotspot.correct {
+  background: green;
+}
+
+.panel {
+  width: 280px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.parts {
+  margin-top: 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.parts li.unanswered { color: black; }
+.parts li.answered { color: blue; font-weight: bold; }
+
+input {
+  padding: 10px;
+  font-size: 16px;
+  width: 320px;
+}
+
+button {
+  padding: 10px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+</style>
+</head>
+
+<body>
+
+<h1>Fibia (Leg)</h1>
+
+<div class="main">
+
+<div class="stage" id="stage">
+
+<img id="boneImg">
+
+<div id="hotspotsLayer"></div>
+
+</div>
+
+<div class="panel">
+
+<label><b>Angle</b></label>
+
+<select id="angleSelect" style="width:100%; padding:8px; margin-top:6px;">
+  <option value="anterior">Anterior</option>
+  <option value="posterior">Posterior</option>
+</select>
+
+<br><br>
+
+<button id="placeBtn">Placement: OFF</button>
+<div id="placeOut"></div>
+
+<details open>
+<summary id="partsSummary">Bone part names</summary>
+<ul id="partsList" class="parts"></ul>
+</details>
+
+</div>
+
+</div>
+
+<br>
+
+<input id="answer" placeholder="Type your answer">
+<button onclick="submitAnswer()">Submit</button>
+<button onclick="nextQuestion()">Skip</button>
+
+<p id="result"></p>
+<p id="progress"></p>
+
+<a href="bones.html">← Back to Bones</a>
+
+<script>
+
+//////////////////////////////////////////////////////////
+// VIEW DATA
+//////////////////////////////////////////////////////////
+
+const VIEWS = {
+
+anterior: {
+
+//////////////////////////////////////////////////////////
+// Edit Name and Coordinates in this array:
+//////////////////////////////////////////////////////////
+
+img: "Images/fibia_anterior.png",
+hotspots: [
+    { name:"Head of fibula", left:20.67, top:16.18 },
+    { name:"Neck of fibula", left:20.83, top:19.61 },
+    { name:"Interosseous border/crest", left:7.00, top:48.65 },
+    { name:"Lateral malleolus", left:22.83, top:92.74 },
+
+]
+
+},
+
+posterior: {
+
+img: "Images/fibia_posterior.png",
+
+hotspots: [
+    { name:"Head of fibula", left:44.00, top:10.14 },
+    { name:"Neck of fibula", left:44.17, top:13.88 },
+    { name:"Interosseous border/crest", left:52.50, top:46.94 },
+    { name:"Lateral malleolus", left:40.33, top:92.50 },
+
+]
+
+}
+
+};
+
+//////////////////////////////////////////////////////////
+// ELEMENTS
+//////////////////////////////////////////////////////////
+
+const boneImg = document.getElementById("boneImg");
+const hotspotsLayer = document.getElementById("hotspotsLayer");
+const angleSelect = document.getElementById("angleSelect");
+
+const answerEl = document.getElementById("answer");
+const resultEl = document.getElementById("result");
+
+const partsListEl = document.getElementById("partsList");
+const partsSummaryEl = document.getElementById("partsSummary");
+
+const progressEl = document.getElementById("progress");
+
+const placeBtn = document.getElementById("placeBtn");
+const placeOut = document.getElementById("placeOut");
+
+//////////////////////////////////////////////////////////
+// STATE
+//////////////////////////////////////////////////////////
+
+let dots = [];
+let currentDot = null;
+let placeMode = false;
+
+//////////////////////////////////////////////////////////
+// RENDER VIEW
+//////////////////////////////////////////////////////////
+
+function renderView(viewKey){
+
+const view = VIEWS[viewKey];
+
+boneImg.src = view.img;
+
+hotspotsLayer.innerHTML = "";
+
+view.hotspots.forEach(h=>{
+
+const d = document.createElement("div");
+
+d.className="hotspot";
+
+d.dataset.answer=h.name;
+
+d.style.left=h.left+"%";
+d.style.top=h.top+"%";
+
+hotspotsLayer.appendChild(d);
+
+});
+
+dots = Array.from(hotspotsLayer.querySelectorAll(".hotspot"));
+
+updateDropdown();
+
+nextQuestion();
+
+}
+
+//////////////////////////////////////////////////////////
+// QUIZ LOGIC
+//////////////////////////////////////////////////////////
+
+function normalize(s){
+return s.trim().toLowerCase();
+}
+
+function isCorrect(dot){
+return dot.classList.contains("correct");
+}
+
+function updateDropdown(){
+
+partsListEl.innerHTML="";
+
+dots.forEach(dot=>{
+
+const li=document.createElement("li");
+
+li.textContent=dot.dataset.answer;
+
+li.className=isCorrect(dot)?"answered":"unanswered";
+
+partsListEl.appendChild(li);
+
+});
+
+const done=dots.filter(isCorrect).length;
+
+partsSummaryEl.textContent=`Bone part names (${done}/${dots.length})`;
+
+progressEl.textContent=`Progress: ${done}/${dots.length}`;
+
+}
+
+function pickRandom(){
+
+const remaining=dots.filter(d=>!isCorrect(d));
+
+if(remaining.length===0) return null;
+
+return remaining[Math.floor(Math.random()*remaining.length)];
+
+}
+
+function nextQuestion(){
+
+if(currentDot && !isCorrect(currentDot))
+currentDot.classList.remove("current");
+
+currentDot=pickRandom();
+
+if(!currentDot){
+
+resultEl.textContent="Complete";
+
+return;
+
+}
+
+currentDot.classList.add("current");
+
+answerEl.value="";
+
+answerEl.focus();
+
+}
+
+function submitAnswer(){
+
+if(!currentDot) return;
+
+const user=normalize(answerEl.value);
+
+const correct=normalize(currentDot.dataset.answer);
+
+if(user===correct){
+
+currentDot.classList.remove("current");
+
+currentDot.classList.add("correct");
+
+resultEl.textContent="Correct: "+currentDot.dataset.answer;
+
+updateDropdown();
+
+setTimeout(nextQuestion,600);
+
+}
+else{
+resultEl.textContent="Incorrect";
+}
+
+}
+
+//////////////////////////////////////////////////////////
+// ANGLE SWITCH
+//////////////////////////////////////////////////////////
+
+angleSelect.addEventListener("change",()=>{
+renderView(angleSelect.value);
+});
+
+//////////////////////////////////////////////////////////
+// PLACEMENT MODE
+//////////////////////////////////////////////////////////
+
+placeBtn.addEventListener("click",()=>{
+
+placeMode=!placeMode;
+
+placeBtn.textContent=placeMode?"Placement: ON":"Placement: OFF";
+
+});
+
+document.getElementById("stage").addEventListener("click",(e)=>{
+
+if(!placeMode) return;
+
+const rect = document.getElementById("stage").getBoundingClientRect();
+
+const x = e.clientX - rect.left;
+const y = e.clientY - rect.top;
+
+const leftPct=(x/rect.width)*100;
+const topPct=(y/rect.height)*100;
+
+placeOut.innerHTML=
+`Copy into VIEWS.${angleSelect.value}.hotspots:<br>
+{ name:"NAME", left:${leftPct.toFixed(2)}, top:${topPct.toFixed(2)} },`;
+
+});
+//////////////////////////////////////////////////////////
+// ENTER KEY SUPPORT
+//////////////////////////////////////////////////////////
+
+answerEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") submitAnswer();
+});
+
+//////////////////////////////////////////////////////////
+// START
+//////////////////////////////////////////////////////////
+
+renderView("anterior");
+
+</script>
+
+</body>
+</html>
